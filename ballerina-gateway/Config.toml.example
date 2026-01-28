@@ -1,0 +1,4 @@
+[equihire.gateway]
+pythonServiceUrl = "http://localhost:8000"
+twilioAccountSid = "AC-placeholder"
+twilioAuthToken = "auth-token-example"
