@@ -11,21 +11,47 @@ interface OrganizationSetupProps {
     onComplete: () => void;
 }
 
+import { useAuthContext } from "@asgardeo/auth-react";
+
 export default function OrganizationSetup({ onComplete }: OrganizationSetupProps) {
+    const { state } = useAuthContext();
     const [isLoading, setIsLoading] = useState(false);
     const [orgName, setOrgName] = useState("");
     const [industry, setIndustry] = useState("");
     const [size, setSize] = useState("");
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!orgName || !industry || !size) return;
 
         setIsLoading(true);
-        // Simulate API/Supabase call
-        setTimeout(() => {
+        try {
+            const response = await fetch('http://localhost:9092/api/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: orgName,
+                    industry,
+                    size,
+                    userEmail: state.email,
+                    userId: state.sub // Use the 'sub' claim as the User ID
+                }),
+            });
+
+            if (response.ok) {
+                // Success
+                onComplete();
+            } else {
+                console.error("Failed to create organization");
+                alert("Failed to create organization. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error creating organization:", error);
+            alert("An error occurred. Please check your connection.");
+        } finally {
             setIsLoading(false);
-            onComplete();
-        }, 1500);
+        }
     };
 
     return (
