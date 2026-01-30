@@ -1,9 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthContext } from "@asgardeo/auth-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EquiHireLogo, DashboardIcon, SessionIcon, IntegrationIcon } from "@/components/ui/Icons";
-import { LogOut, Bell, Settings, Search } from "lucide-react";
+import { LogOut, Bell, Settings, Search, Check, Building2, ChevronDown } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label";
 
 // Import Pages
 import InterviewScheduler from './views/Scheduler';
@@ -12,7 +36,55 @@ import Integrations from './views/Integrations';
 
 export default function Dashboard() {
     const { state, signOut } = useAuthContext();
+    const [organization, setOrganization] = useState<{ id: string; name: string; industry: string; size: string } | null>(null);
     const [activeTab, setActiveTab] = useState<"scheduler" | "candidates" | "integrations">("scheduler");
+
+    // Settings State
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [editForm, setEditForm] = useState({ industry: "", size: "" });
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        const fetchOrg = async () => {
+            if (state.sub) {
+                try {
+                    const response = await fetch(`http://localhost:9092/api/me/organization?userId=${state.sub}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setOrganization(data);
+                        setEditForm({ industry: data.industry, size: data.size });
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch organization", error);
+                }
+            }
+        };
+        fetchOrg();
+    }, [state.sub]);
+
+    const handleUpdateOrg = async () => {
+        if (!organization || !state.sub) return;
+        setIsSaving(true);
+        try {
+            const response = await fetch(`http://localhost:9092/api/organization?userId=${state.sub}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...organization, ...editForm })
+            });
+
+            if (response.ok) {
+                setOrganization({ ...organization, ...editForm });
+                setIsSettingsOpen(false);
+            } else {
+                alert("Failed to update organization");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error updating organization");
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] text-[#1D1D1D] font-sans flex text-sm">
@@ -75,11 +147,39 @@ export default function Dashboard() {
                         />
                     </div>
                     <div className="flex items-center space-x-4">
+                        {/* Organization Dropdown */}
+                        {organization && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="h-9 border-dashed border-gray-300 bg-transparent px-3 text-xs font-medium hover:bg-gray-100 hidden sm:flex items-center gap-2">
+                                        <Building2 className="h-3.5 w-3.5 text-gray-500" />
+                                        <span>{organization.name}</span>
+                                        <ChevronDown className="h-3 w-3 text-gray-400" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                    <DropdownMenuLabel className="text-xs font-normal text-gray-500">Current Workspace</DropdownMenuLabel>
+                                    <DropdownMenuItem className="gap-2 p-2 focus:bg-orange-50 focus:text-orange-600 cursor-default">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-md border bg-white">
+                                            <Building2 className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div className="flex flex-col space-y-0.5">
+                                            <span className="text-sm font-medium">{organization.name}</span>
+                                            <span className="text-xs text-gray-400 capitalize">{organization.industry?.replace('_', ' ')}</span>
+                                        </div>
+                                        <Check className="ml-auto h-4 w-4 text-orange-600" />
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                                        <Settings className="mr-2 h-4 w-4" />
+                                        <span>Organization Settings</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
                         <Button variant="ghost" size="icon" className="text-gray-500">
                             <Bell className="h-5 w-5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-gray-500">
-                            <Settings className="h-5 w-5" />
                         </Button>
                         <Button
                             variant="ghost"
@@ -91,6 +191,65 @@ export default function Dashboard() {
                         </Button>
                     </div>
                 </header>
+
+                {/* Org Settings Modal */}
+                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Organization Settings</DialogTitle>
+                            <DialogDescription>
+                                Manage your organization's details here.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="name">Display Name</Label>
+                                <Input id="name" value={organization?.name || ''} disabled className="bg-gray-100" />
+                                <p className="text-[0.8rem] text-muted-foreground">Organization names cannot be changed.</p>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="industry">Industry</Label>
+                                <Select
+                                    value={editForm.industry}
+                                    onValueChange={(val) => setEditForm({ ...editForm, industry: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select industry" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="software_engineering">Software Engineering</SelectItem>
+                                        <SelectItem value="ai_ml">Artificial Intelligence / ML</SelectItem>
+                                        <SelectItem value="data_science">Data Science</SelectItem>
+                                        <SelectItem value="it_services">IT Services & Consulting</SelectItem>
+                                        <SelectItem value="cyber_security">Cyber Security</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="size">Company Size</Label>
+                                <Select
+                                    value={editForm.size}
+                                    onValueChange={(val) => setEditForm({ ...editForm, size: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select size" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1-10">1-10 employees</SelectItem>
+                                        <SelectItem value="11-50">11-50 employees</SelectItem>
+                                        <SelectItem value="50+">50+ employees</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                            <Button onClick={handleUpdateOrg} disabled={isSaving} className="bg-[#FF7300] hover:bg-[#E56700]">
+                                {isSaving ? "Saving..." : "Save changes"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Content Body */}
                 <div className="p-8 overflow-auto flex-1 bg-[#F8F9FA]">
