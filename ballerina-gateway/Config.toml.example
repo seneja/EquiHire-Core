@@ -11,9 +11,6 @@ smtpUsername = "********@smtp-brevo.com"
 smtpPassword = "***********" 
 smtpFromEmail = "**********@gmail.com" 
 
-[database]
-host = "db.************.supabase.co"
-port = 5432
-user = "postgres"
-password = "**********"
-name = "postgres"
+[supabase]
+url = "https://your-project.supabase.co"
+key = "your-anon-or-service-role-key"

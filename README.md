@@ -144,9 +144,26 @@ The connection is established.
 ## 🚀 Key Features
 
 ### 🧠 AI Capabilities
-* **Context-Aware Transcription:** OpenAI Whisper primed for Sri Lankan technical accents (e.g., "Moratuwa", "Batch Top").
-* **Real-Time Redaction:** Custom Fine-Tuned BERT model (`bert-base-ner`) to detect and mask local entities (`[School]`, `[Location]`).
-* **XAI Feedback Engine:** Uses Cosine Similarity (Scikit-Learn) to explain rejections based on semantic gaps in the transcript.
+
+* **Context-Aware Transcription:**
+* **Engine:** OpenAI Whisper (API Mode).
+* **Innovation:** Implements "Context Priming" by injecting a glossary of Sri Lankan technical terms (e.g., "Moratuwa", "HND", "Batch Top") into the prompt to resolve accent ambiguities and eliminate hallucinations.
+
+* **Real-Time Redaction (The Firewall):**
+* **Engine:** Fine-Tuned BERT (`bert-base-ner`).
+* **Innovation:** Specifically fine-tuned on a custom dataset of Sri Lankan entities to detect and mask local PII (e.g., `[School]`, `[Location]`, `[Religion]`) that standard models miss.
+
+* **Deterministic Scoring (The Judge):**
+* **Engine:** Scikit-Learn (Cosine Similarity & TF-IDF).
+* **Innovation:** Converts candidate answers and job descriptions into vector space to calculate a mathematically provable "Relevance Score," ensuring grading is objective and free from LLM hallucinations.
+
+* **Generative Feedback & Auditor (The Safety Valve):**
+* **Engine:** **Google Gemini**.
+* **Innovation:** Acts as a dual-layer system:
+1. **Narrator:** Converts raw Scikit-Learn scores into human-readable "Growth Reports" for rejected candidates.
+2. **Auditor:** Performs a secondary "Safety Check" on transcripts to flag subtle PII that the BERT model might have missed before the recruiter sees the text.
+
+---
 
 ### 🛠 Software Modules
 1.  **Secure Identity:** Magic Link login & Role-Based Access Control (RBAC) via **WSO2 Asgardeo**.
