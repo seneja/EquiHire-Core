@@ -104,13 +104,24 @@ service /api on apiListener {
 
     resource function post jobs(@http:Payload types:JobRequest payload) returns types:JobResponse|http:InternalServerError|error {
         io:println("NEW JOB CREATION REQUEST");
+
+        // Resolve Recruiter ID from User ID (payload.recruiterId contains the User ID from the frontend)
+        string|error recruiterIdResult = dbClient->getRecruiterId(payload.recruiterId);
+
+        if recruiterIdResult is error {
+            io:println("Error resolving Recruiter ID: ", recruiterIdResult.message());
+            return error("Recruiter profile not found for user: " + payload.recruiterId);
+        }
+
+        string realRecruiterId = <string>recruiterIdResult;
+
         string|error jobId = dbClient->createJob(
             payload.title,
             payload.description,
             payload.requiredSkills,
             payload.screeningQuestions,
             payload.organizationId,
-            payload.recruiterId
+            realRecruiterId
         );
 
         if jobId is error {
@@ -121,6 +132,40 @@ service /api on apiListener {
         return {id: jobId};
     }
 
+    # Retrieves all jobs for the authenticated recruiter.
+    #
+    # + userId - User ID
+    # + return - List of jobs
+    resource function get jobs(string userId) returns json[]|http:InternalServerError|error {
+        string|error recruiterId = dbClient->getRecruiterId(userId);
+        if recruiterId is error {
+            return error("Recruiter not found");
+        }
+
+        json[]|error jobs = dbClient->getJobsByRecruiter(recruiterId);
+        if jobs is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return jobs;
+    }
+
+    # Retrieves invitation history for the authenticated recruiter.
+    #
+    # + userId - User ID
+    # + return - List of invitations
+    resource function get invitations(string userId) returns json[]|http:InternalServerError|error {
+        string|error recruiterId = dbClient->getRecruiterId(userId);
+        if recruiterId is error {
+            return error("Recruiter not found");
+        }
+
+        json[]|error invitations = dbClient->getInvitationsByRecruiter(recruiterId);
+        if invitations is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return invitations;
+    }
+
     // --- Secure Candidate Upload (Vault & View) ---
 
     // 1. Get Presigned URL for Upload (Client uploads directly to R2)
@@ -129,14 +174,23 @@ service /api on apiListener {
         string objectKey = "candidates/" + candidateId + "/resume.pdf";
 
         // Generate Presigned URL
-        // TODO: Validate correct method for 'ballerinax/aws.s3' to generate PUT url.
-        // For MVP/Compilation, we will stub it if the method is not found.
-        // Trying 'presignUrl' one more time or assuming fixed later.
-        // Actually, let's just construct it manually for now to avoid compilation error if method missing.
-        // A placeholder for now:
-        string signedUrlResult = "https://" + r2.accountId + ".r2.cloudflarestorage.com/" + r2.bucketName + "/" + objectKey + "?token=placeholder";
+        // Using manual V4 signing (utils.bal) because S3 client presignUrl is not available or version mismatch.
+        string|error signedUrlResult = generateR2PresignedUrl(
+                r2.accessKeyId,
+                r2.secretAccessKey,
+                r2.accountId,
+                r2.bucketName,
+                objectKey,
+                "PUT",
+                3600
+        );
 
-        io:println("Generated Placeholder Presigned URL for Candidate: ", candidateId);
+        if signedUrlResult is error {
+            io:println("Error generating presigned URL: ", signedUrlResult.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+
+        io:println("Generated Presigned URL for Candidate: ", candidateId);
 
         return {
             uploadUrl: signedUrlResult,
@@ -229,6 +283,7 @@ service /api on apiListener {
                 payload.jobTitle,
                 realRecruiterId,
                 payload.organizationId,
+                payload.jobId,
                 payload.interviewDate,
                 expiresAt
         );
@@ -322,7 +377,8 @@ service /api on apiListener {
             candidateEmail: result.candidate_email,
             candidateName: result.candidate_name,
             jobTitle: result.job_title,
-            organizationId: result.organization_id
+            organizationId: result.organization_id,
+            jobId: result.job_id
         };
     }
 }

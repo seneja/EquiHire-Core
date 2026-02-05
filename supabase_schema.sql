@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.interview_invitations (
     candidate_name VARCHAR(255),
     recruiter_id UUID REFERENCES public.recruiters(id),
     organization_id UUID REFERENCES public.organizations(id),
+    job_id UUID REFERENCES public.jobs(id),
     job_title VARCHAR(255),
     interview_date TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,

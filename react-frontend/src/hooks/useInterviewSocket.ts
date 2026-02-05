@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthContext } from "@asgardeo/auth-react";
 
-export const useInterviewSocket = (url: string = 'ws://localhost:9091/dashboard') => {
+export const useInterviewSocket = (url: string = 'ws://localhost:9091/dashboard', explicitToken?: string) => {
     const [transcripts, setTranscripts] = useState<string[]>([]);
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const { getAccessToken, state } = useAuthContext();
 
     useEffect(() => {
-        if (!state.isAuthenticated) {
+        if (!state.isAuthenticated && !explicitToken) {
             return;
         }
 
         const connectSocket = async () => {
             try {
-                const token = await getAccessToken();
+                let token = explicitToken;
+                if (!token && state.isAuthenticated) {
+                    token = await getAccessToken();
+                }
+
                 const wsUrl = `${url}?token=${token}`;
                 const socket = new WebSocket(wsUrl);
                 socketRef.current = socket;
@@ -51,7 +55,7 @@ export const useInterviewSocket = (url: string = 'ws://localhost:9091/dashboard'
                 socketRef.current.close();
             }
         };
-    }, [url, state.isAuthenticated, getAccessToken]);
+    }, [url, state.isAuthenticated, getAccessToken, explicitToken]);
 
     return { transcripts, isConnected };
 };

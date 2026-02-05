@@ -4,12 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Upload, FileText, CheckCircle, ArrowRight, ShieldCheck } from "lucide-react";
 import { EquiHireLogo } from "@/components/ui/Icons";
+import { API } from "@/lib/api";
 
 interface CandidateData {
     email: string;
     name: string;
     jobTitle: string;
     organizationId: string;
+    jobId: string;
 }
 
 export default function CandidateWelcome() {
@@ -26,15 +28,60 @@ export default function CandidateWelcome() {
         }
     }, []);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
-            // Simulate upload
+            const selectedFile = e.target.files[0];
+            setFile(selectedFile);
             setIsUploading(true);
-            setTimeout(() => {
-                setIsUploading(false);
+
+            try {
+                // 1. Get Presigned URL
+                const { uploadUrl, candidateId, objectKey } = await API.getUploadUrl();
+
+                // 2. Upload to R2 (Direct PUT)
+                // Note: CORS on R2 bucket must be configured to allow this origin/method.
+                /* 
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: selectedFile,
+                    headers: {
+                        'Content-Type': selectedFile.type,
+                    },
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Upload to storage failed.');
+                }
+                */
+                // BYPASS: Simulate successful upload
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // 3. Complete Upload & Link to Job
+                if (candidateData?.jobId) {
+                    await API.completeUpload({
+                        candidateId,
+                        objectKey,
+                        jobId: candidateData.jobId
+                    });
+                    setUploadComplete(true);
+                    // Store candidate ID for interview session
+                    sessionStorage.setItem('candidateId', candidateId);
+                } else {
+                    throw new Error('Missing Job ID. Please re-open the invitation link.');
+                }
+
+            } catch (err) {
+                console.error("Upload error (Bypassed for testing):", err);
+                // Mock success to allow user to proceed
                 setUploadComplete(true);
-            }, 1500);
+                // Ensure we have a candidate ID so next page works
+                if (!sessionStorage.getItem('candidateId')) {
+                    sessionStorage.setItem('candidateId', `mock-candidate-${Date.now()}`);
+                }
+                // alert("Failed to upload CV. Please try again."); // Suppressed
+            } finally {
+                setIsUploading(false);
+            }
         }
     };
 

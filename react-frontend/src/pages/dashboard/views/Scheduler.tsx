@@ -8,11 +8,24 @@ import { Clock, Mail } from "lucide-react";
 export default function InterviewScheduler() {
     const { state } = useAuthContext();
     const [organization, setOrganization] = useState<{ id: string; name: string } | null>(null);
-    const [history] = useState([
-        { id: 1, email: "sarah.j@gmail.com", role: "Senior Backend Eng", time: "2 mins ago", status: "sent" },
-        { id: 2, email: "david.c@protonmail.com", role: "Frontend Dev", time: "1 hour ago", status: "delivered" },
-        { id: 3, email: "alex.m@yahoo.com", role: "DevOps", time: "Yesterday", status: "opened" },
-    ]);
+    const [history, setHistory] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (state.sub) {
+            API.getInvitations(state.sub)
+                .then((data: any[]) => {
+                    const formatted = data.map(record => ({
+                        id: record.id,
+                        email: record.candidate_email,
+                        role: record.job_title,
+                        time: new Date(record.created_at).toLocaleDateString(),
+                        status: record.status
+                    }));
+                    setHistory(formatted);
+                })
+                .catch(err => console.error("Failed to load history", err));
+        }
+    }, [state.sub]);
 
     useEffect(() => {
         const fetchOrg = async () => {
