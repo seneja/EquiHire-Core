@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, RefreshCw, Server, Shield, Zap, Globe } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, Server, Shield } from "lucide-react";
 
 const IntegrationCard = ({ title, description, icon: Icon, status, lastSync }: any) => (
     <Card className="shadow-sm border-gray-200">
@@ -50,13 +50,7 @@ export default function Integrations() {
                 <div className="col-span-full">
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Communication Infrastructure</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <IntegrationCard
-                            title="Twilio Voice"
-                            description="Real-time audio streaming gateway"
-                            icon={Globe}
-                            status="active"
-                            lastSync="Just now"
-                        />
+
                         <IntegrationCard
                             title="SendGrid Email"
                             description="Transactional email delivery"
@@ -92,13 +86,7 @@ export default function Integrations() {
                 <div className="col-span-full">
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Artificial Intelligence</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <IntegrationCard
-                            title="OpenAI Whisper"
-                            description="Speech-to-text transcription engine"
-                            icon={Zap}
-                            status="active"
-                            lastSync="Ready"
-                        />
+
                         <IntegrationCard
                             title="BERT Redaction"
                             description="PII detection and removal model"

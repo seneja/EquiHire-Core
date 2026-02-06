@@ -36,7 +36,7 @@ export default function CandidateWelcome() {
 
             try {
                 // 1. Get Presigned URL
-                const { uploadUrl, candidateId, objectKey } = await API.getUploadUrl();
+                const { candidateId, objectKey } = await API.getUploadUrl();
 
                 // 2. Upload to R2 (Direct PUT)
                 // Note: CORS on R2 bucket must be configured to allow this origin/method.
@@ -118,7 +118,7 @@ export default function CandidateWelcome() {
                             </p>
                         )}
                         <p className="mt-2 text-gray-500">
-                            EquiHire ensures a fair process. Your voice will be masked and your identity protected until the final stage.
+                            EquiHire ensures a fair process. Your identity will be protected until the final stage.
                         </p>
                     </div>
 
@@ -168,7 +168,7 @@ export default function CandidateWelcome() {
                                     Join Session
                                 </h3>
                                 <p className="text-sm text-gray-500 ml-9">
-                                    The interview will be audio-only. Please ensure you are in a quiet environment.
+                                    You are about to enter the Lockdown Assessment.
                                 </p>
                                 <Button
                                     className="w-full bg-[#FF7300] hover:bg-[#E56700] text-white h-12 text-base"

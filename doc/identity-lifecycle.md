@@ -53,14 +53,14 @@ Candidates should not have to create a complex account with a password.
     -   **Security**: The frontend holds a temporary "Candidate Session" (in memory).
     -   The Candidate cannot see the Recruiter's dashboard or other candidates.
 
-## Phase 5: The Interview (The Connection)
+## Phase 5: The Assessment (The Lockdown)
 
-1.  **Connecting to the Room**:
-    -   **Action**: Candidate clicks "Join Interview."
+1.  **Starting the Assessment**:
+    -   **Action**: Candidate clicks "Start Assessment."
     -   **Ballerina Gateway**:
         -   It validates the Candidate Session.
-        -   **Verification Success**: It opens the WebSocket Audio Stream.
-        -   The **Bias Firewall** begins processing audio immediately.
+        -   **Verification Success**: Initializes the Lockdown Environment.
+        -   **Agentic Firewall**: The **Censor Agent** stands by to intercept and redact text submissions in real-time.
 
 2.  **The End of the Session**:
     -   **Action**: The interview finishes.

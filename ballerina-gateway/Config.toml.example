@@ -1,5 +1,5 @@
 pythonServiceUrl = "http://localhost:8000"
-openAIKey = "sk-proj-..."
+# openAIKey removed as it was for voice transcription
 
 asgardeoTokenAudience = "EquiHire-Core"
 frontendUrl = "http://localhost:5173"

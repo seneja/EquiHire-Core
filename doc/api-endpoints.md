@@ -46,26 +46,6 @@
 -   **GET** `/api/invitations/validate/[token]`
 -   **Response**: `200 OK` (if valid and not expired)
 
-### WebSocket Services
-
-#### 1. Twilio Media Stream
--   **URL**: `ws://localhost:9090/streams`
--   **Protocol**: Twilio Media Stream (WebSocket)
--   **Input**: Audio chunks (mulaw 8k).
--   **Function**: Ingests audio for the Bias Firewall.
-
-#### 2. Recruiter Dashboard
--   **URL**: `ws://localhost:9091/dashboard?token=[JWT]`
--   **Auth**: Asgardeo JWT required.
--   **Output**: Server-sent events:
-    ```json
-    {
-      "type": "transcription",
-      "text": "Hello, I am [Candidate].",
-      "pii_detected": true
-    }
-    ```
-
 ## Python AI Engine Endpoints
 
 ### 1. Sanitize Text (Firewall)
@@ -74,7 +54,7 @@
     ```json
     {
       "text": "I worked at Google in New York.",
-      "context": "voice_interview"
+      "context": "assessment"
     }
     ```
 -   **Response**:
