@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mail, Send, CheckCircle, Copy, AlertCircle } from "lucide-react";
 import { useAuthContext } from "@asgardeo/auth-react";
 import { API } from "@/lib/api";
@@ -13,21 +14,35 @@ interface InviteCandidateProps {
 
 export default function InviteCandidate({ organizationId }: InviteCandidateProps) {
     const { state } = useAuthContext();
+    const [jobs, setJobs] = useState<any[]>([]);
+    const [selectedJobId, setSelectedJobId] = useState('');
     const [candidateEmail, setCandidateEmail] = useState('');
     const [candidateName, setCandidateName] = useState('');
-    const [jobTitle, setJobTitle] = useState('');
+    // Job Title is now derived from selected job
     const [interviewDate, setInterviewDate] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [magicLink, setMagicLink] = useState('');
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
 
+    useEffect(() => {
+        if (state.sub) {
+            API.getJobs(state.sub)
+                .then(setJobs)
+                .catch(err => console.error("Failed to load jobs", err));
+        }
+    }, [state.sub]);
+
+    const handleJobSelect = (value: string) => {
+        setSelectedJobId(value);
+    };
+
     const handleSendInvitation = async () => {
         setError('');
         setMagicLink('');
 
-        if (!candidateEmail || !candidateName || !jobTitle) {
-            setError('Please fill in all required fields');
+        if (!candidateEmail || !candidateName || !selectedJobId) {
+            setError('Please fill in all required fields and select a job');
             return;
         }
 
@@ -42,7 +57,8 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
             const payload = {
                 candidateEmail,
                 candidateName,
-                jobTitle,
+                jobTitle: jobs.find(j => j.id === selectedJobId)?.title || 'Unknown Role',
+                jobId: selectedJobId,
                 interviewDate: interviewDate || null,
                 organizationId,
                 recruiterId: state.sub
@@ -54,7 +70,7 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
             // Clear form
             setCandidateEmail('');
             setCandidateName('');
-            setJobTitle('');
+            setSelectedJobId('');
             setInterviewDate('');
 
         } catch (err) {
@@ -73,18 +89,14 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
 
     return (
         <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-[#FF7300] to-[#E56700] text-white">
+            <CardHeader>
                 <div className="flex items-center">
-                    <Mail className="h-6 w-6 mr-2" />
-                    <div>
-                        <CardTitle>Invite Candidate</CardTitle>
-                        <CardDescription className="text-orange-50">
-                            Send a magic link invitation for a blind interview
-                        </CardDescription>
-                    </div>
+                    <Mail className="h-6 w-6 mr-2 text-[#FF7300]" />
+                    <CardTitle>Invite Candidate</CardTitle>
                 </div>
+                <CardDescription>Enter candidate details to schedule an interview.</CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="space-y-4">
                 {magicLink ? (
                     <div className="space-y-4">
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -112,7 +124,7 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
                         </div>
                         <Button
                             onClick={() => setMagicLink('')}
-                            className="w-full bg-[#FF7300] hover:bg-[#E56700]"
+                            className="w-full bg-gray-900 hover:bg-gray-800"
                         >
                             Send Another Invitation
                         </Button>
@@ -148,13 +160,20 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="jobTitle">Job Title *</Label>
-                            <Input
-                                id="jobTitle"
-                                placeholder="Senior Python Engineer"
-                                value={jobTitle}
-                                onChange={(e) => setJobTitle(e.target.value)}
-                            />
+                            <Label htmlFor="jobSelect">Job Role *</Label>
+                            <Select onValueChange={handleJobSelect} value={selectedJobId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a job role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {jobs.map((job) => (
+                                        <SelectItem key={job.id} value={job.id}>
+                                            {job.title}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500">Create new jobs in the "Create Job" section</p>
                         </div>
 
                         <div className="space-y-2">
@@ -170,7 +189,7 @@ export default function InviteCandidate({ organizationId }: InviteCandidateProps
                         <Button
                             onClick={handleSendInvitation}
                             disabled={isSending}
-                            className="w-full bg-[#FF7300] hover:bg-[#E56700] text-white h-12"
+                            className="w-full bg-gray-900 hover:bg-gray-800 text-white h-12"
                         >
                             <Send className="h-4 w-4 mr-2" />
                             {isSending ? 'Sending...' : 'Send Invitation'}

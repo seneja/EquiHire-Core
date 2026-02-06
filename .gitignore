@@ -27,6 +27,7 @@ env/
 venv/
 .env
 .pytest_cache/
+sri_lankan_employee_ner_dataset.json
 
 # Ballerina
 target/

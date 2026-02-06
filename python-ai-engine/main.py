@@ -60,7 +60,7 @@ app = FastAPI(title="EquiHire Intelligence Engine")
 
 class TextPayload(BaseModel):
     text: str
-    context: Optional[str] = "interview"
+    context: Optional[str] = "assessment"
 
 class Redaction(BaseModel):
     entity: str

@@ -8,6 +8,7 @@ public type InvitationRecord record {
     string? candidate_name;
     string? job_title;
     string organization_id;
+    string job_id;
     string expires_at;
     string? used_at;
     string status;
@@ -203,16 +204,18 @@ public client class Repository {
     # + jobTitle - Job title
     # + recruiterId - Recruiter ID (UUID)
     # + organizationId - Organization ID (UUID)
+    # + jobId - Job ID (UUID)
     # + interviewDate - Interview date (or null)
     # + expiresAt - Expiration timestamp
     # + return - Invitation ID or error
-    remote function createInvitation(string token, string candidateEmail, string candidateName, string jobTitle, string recruiterId, string organizationId, string? interviewDate, string expiresAt) returns string|error {
+    remote function createInvitation(string token, string candidateEmail, string candidateName, string jobTitle, string recruiterId, string organizationId, string jobId, string? interviewDate, string expiresAt) returns string|error {
         json payload = {
             "token": token,
             "candidate_email": candidateEmail,
             "candidate_name": candidateName,
             "recruiter_id": recruiterId,
             "organization_id": organizationId,
+            "job_id": jobId,
             "job_title": jobTitle,
             "interview_date": interviewDate,
             "expires_at": expiresAt,
@@ -262,6 +265,7 @@ public client class Repository {
             candidate_name: data["candidate_name"] is () ? () : data["candidate_name"].toString(),
             job_title: data["job_title"] is () ? () : data["job_title"].toString(),
             organization_id: data["organization_id"].toString(),
+            job_id: data["job_id"] is () ? "" : data["job_id"].toString(),
             expires_at: data["expires_at"].toString(),
             used_at: data["used_at"] is () ? () : data["used_at"].toString(),
             status: data["status"].toString()
@@ -307,6 +311,7 @@ public client class Repository {
     #
     # + candidateId - Candidate UUID
     # + r2ObjectKey - S3 Object Key
+    # + jobId - The Job ID associated with this application
     # + return - Error if failed
     remote function createSecureIdentity(string candidateId, string r2ObjectKey, string jobId) returns error? {
         // We first need to create the anonymous profile (since it's the parent key)
@@ -395,6 +400,42 @@ public client class Repository {
         map<json> job = <map<json>>results[0];
         json skillsJson = job["required_skills"];
         return <string[]>skillsJson;
+    }
+
+    # Retrieves all jobs for a specific recruiter's organization.
+    #
+    # + recruiterId - Recruiter ID
+    # + return - List of Jobs or Error
+    remote function getJobsByRecruiter(string recruiterId) returns json[]|error {
+        // First get Org ID
+        // Note: For efficiency, one might store OrgID in JWT or session, but here we look it up.
+        // Assuming we pass OrgId or lookup. For now, let's filter by recruiter_id or organization_id.
+
+        string path = string `/rest/v1/jobs?recruiter_id=eq.${recruiterId}&select=id,title,created_at`;
+        http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+
+        json body = check response.getJsonPayload();
+        return <json[]>body;
+    }
+
+    # Retrieves invitation history for a recruiter.
+    #
+    # + recruiterId - Recruiter ID
+    # + return - List of Invitations or Error
+    remote function getInvitationsByRecruiter(string recruiterId) returns json[]|error {
+        string path = string `/rest/v1/interview_invitations?recruiter_id=eq.${recruiterId}&select=id,candidate_email,candidate_name,job_title,status,created_at&order=created_at.desc`;
+        http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+
+        json body = check response.getJsonPayload();
+        return <json[]>body;
     }
 
 }

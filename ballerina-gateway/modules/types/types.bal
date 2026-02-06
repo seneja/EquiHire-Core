@@ -35,6 +35,7 @@ public type OrganizationResponse record {
 # + interviewDate - Optional interview date (ISO 8601)
 # + organizationId - Organization ID
 # + recruiterId - Recruiter's User ID
+# + jobId - ID of the Job role
 public type InvitationRequest record {
     string candidateEmail;
     string candidateName;
@@ -42,6 +43,7 @@ public type InvitationRequest record {
     string? interviewDate;
     string organizationId;
     string recruiterId;
+    string jobId;
 };
 
 # Represents an invitation response.
@@ -66,6 +68,7 @@ public type InvitationResponse record {
 # + candidateName - Candidate's name (if valid)
 # + jobTitle - Job title (if valid)
 # + organizationId - Organization ID (if valid)
+# + jobId - Job ID (if valid)
 # + message - Error message (if invalid)
 public type TokenValidationResponse record {
     boolean valid;
@@ -73,6 +76,7 @@ public type TokenValidationResponse record {
     string? candidateName?;
     string? jobTitle?;
     string? organizationId?;
+    string? jobId?;
     string? message?;
 };
 
