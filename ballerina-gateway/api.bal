@@ -16,6 +16,12 @@ import equihire/gateway.types;
 configurable types:SupabaseConfig supabase = ?;
 configurable types:R2Config r2 = ?;
 configurable string frontendUrl = ?;
+configurable string pythonServiceUrl = ?;
+
+// Asgardeo Configuration
+configurable string asgardeoOrgUrl = ?;
+configurable string asgardeoTokenAudience = ?;
+configurable string asgardeoJwksUrl = ?;
 
 // SMTP Configuration
 configurable string smtpHost = ?;
@@ -46,7 +52,8 @@ final s3:Client r2Client = check new (
 );
 
 final database:Repository dbClient = check new (supabase);
-// pythonClient is defined in service.bal and available here
+// Python AI Engine Client
+final http:Client pythonClient = check new (pythonServiceUrl);
 
 // --- HTTP Service for API (Port 9092) ---
 listener http:Listener apiListener = new (9092);
