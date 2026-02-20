@@ -133,28 +133,28 @@ service /api on apiListener {
         return {id: jobId};
     }
 
-    # Saves screening questions for a specific job in bulk to the new structured table.
-    #
-    # + payload - List of questions with their metadata
-    # + return - Created status or error
-    resource function post jobs/questions(@http:Payload types:QuestionPayload payload) returns http:Created|http:InternalServerError|error {
-        foreach var q in payload.questions {
-            // Using '->' because createJobQuestion is a remote function
-            error? result = dbClient->createJobQuestion(
-                q.jobId,
-                q.questionText,
-                q.sampleAnswer,
-                q.keywords,
-                q.questionType
-            );
+resource function post jobs/questions(@http:Payload types:QuestionPayload payload) returns http:Created|http:BadRequest|http:InternalServerError|error {
+    foreach var q in payload.questions {
 
-            if result is error {
-                io:println("Error creating question: ", result.message());
-                return http:INTERNAL_SERVER_ERROR;
-            }
+        error? result = dbClient->createJobQuestion(
+            q.jobId,
+            q.organizationId, 
+            q.questionText,
+            q.sampleAnswer,
+            q.keywords,
+            q.questionType,
+            q.sortOrder      
+        );
+
+        if result is error {
+            io:println("Error creating question: ", result.message());
+            return <http:InternalServerError>{
+                body: { "error": result.message() }
+            };
         }
-        return http:CREATED;
     }
+    return http:CREATED;
+}
 
     resource function get jobs/[string jobId]/questions() returns types:QuestionItem[]|http:InternalServerError|error {
         types:QuestionItem[]|error questions = dbClient->getJobQuestions(jobId);
