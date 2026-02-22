@@ -162,7 +162,6 @@ CREATE TABLE public.jobs (
     
     -- Filter Logic
     required_skills JSONB, -- ["Python", "Django", "RestAPI"]
-    screening_questions JSONB, -- ["Explain Dependency Injection", "What is ACID?"]
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -186,3 +185,60 @@ ADD COLUMN job_id UUID REFERENCES public.jobs(id);
 
 ALTER TABLE public.anonymous_profiles
 ADD COLUMN status VARCHAR(50) DEFAULT 'applied'; -- 'applied', 'auto-rejected', 'screening', 'shortlisted', 'rejected'
+
+-- Create Questions Table
+CREATE TABLE public.questions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    job_id UUID REFERENCES public.jobs(id) ON DELETE CASCADE,
+    question_text TEXT NOT NULL,
+    sample_answer TEXT,
+    keywords JSONB, -- Stored as an array of strings ["keyword1", "keyword2"]
+    type VARCHAR(50) DEFAULT 'paragraph', -- 'paragraph', 'code'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS for Questions
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Recruiters can view questions for their jobs" ON public.questions
+    FOR SELECT USING (
+        job_id IN (
+            SELECT id FROM public.jobs 
+            WHERE organization_id IN (
+                SELECT organization_id FROM public.recruiters WHERE user_id = auth.uid()
+            )
+        )
+    );
+
+CREATE POLICY "Recruiters can insert questions for their jobs" ON public.questions
+    FOR INSERT WITH CHECK (
+        job_id IN (
+            SELECT id FROM public.jobs 
+            WHERE organization_id IN (
+                SELECT organization_id FROM public.recruiters WHERE user_id = auth.uid()
+            )
+        )
+    );
+
+CREATE POLICY "Recruiters can delete questions for their jobs" ON public.questions
+    FOR DELETE USING (
+        job_id IN (
+            SELECT id FROM public.jobs 
+            WHERE organization_id IN (
+                SELECT organization_id FROM public.recruiters WHERE user_id = auth.uid()
+            )
+        )
+    );
+
+CREATE POLICY "Recruiters can update questions for their jobs" ON public.questions
+    FOR UPDATE USING (
+        job_id IN (
+            SELECT id FROM public.jobs 
+            WHERE organization_id IN (
+                SELECT organization_id FROM public.recruiters WHERE user_id = auth.uid()
+            )
+        )
+    );
+
+-- Remove screening_questions from jobs table
+ALTER TABLE public.jobs DROP COLUMN IF EXISTS screening_questions;
