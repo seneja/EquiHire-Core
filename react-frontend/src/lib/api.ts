@@ -1,5 +1,3 @@
-
-
 const API_BASE_url = "http://localhost:9092/api";
 
 export const API = {
@@ -41,12 +39,6 @@ export const API = {
             body: JSON.stringify(data),
         });
         if (!response.ok) throw new Error("Failed to send invitation");
-        return response.json();
-    },
-
-    validateInvitation: async (token: string) => {
-        const response = await fetch(`${API_BASE_url}/invitations/validate/${token}`);
-        if (!response.ok) throw new Error("Invalid or expired token");
         return response.json();
     },
 
@@ -98,6 +90,40 @@ export const API = {
         return response.json();
     },
 
+    getEvaluationTemplates: async (orgId: string) => {
+        const response = await fetch(`${API_BASE_url}/organizations/${orgId}/evaluation-templates`);
+        if (!response.ok) throw new Error("Failed to fetch evaluation templates");
+        return response.json();
+    },
+
+    createEvaluationTemplate: async (orgId: string, data: any) => {
+        const response = await fetch(`${API_BASE_url}/evaluation-templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...data, organization_id: orgId }),
+        });
+        if (!response.ok) throw new Error("Failed to create evaluation template");
+        return response.json();
+    },
+
+    updateEvaluationTemplate: async (orgId: string, templateId: string, data: any) => {
+        const response = await fetch(`${API_BASE_url}/evaluation-templates/${templateId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...data, organization_id: orgId }),
+        });
+        if (!response.ok) throw new Error("Failed to update evaluation template");
+        return response;
+    },
+
+    deleteEvaluationTemplate: async (orgId: string, templateId: string) => {
+        const response = await fetch(`${API_BASE_url}/evaluation-templates/${templateId}?organizationId=${orgId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error("Failed to delete evaluation template");
+        return response;
+    },
+
     getInvitations: async (userId: string) => {
         const response = await fetch(`${API_BASE_url}/invitations?userId=${userId}`);
         if (!response.ok) throw new Error("Failed to fetch invitations");
@@ -119,5 +145,82 @@ export const API = {
         });
         if (!response.ok) throw new Error("Failed to complete upload");
         return response;
-    }
+    },
+
+    // Interview Invitation & Questions flow
+    validateInvitation: async (token: string) => {
+        const response = await fetch(`${API_BASE_url}/invitations/validate/${token}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return { valid: false, message: "Invitation not found" };
+            }
+            throw new Error("Failed to validate invitation");
+        }
+        return response.json();
+    },
+
+    submitCandidateAnswers: async (candidateId: string, jobId: string, answers: any[]) => {
+        // POST /api/candidates/${candidateId}/evaluate (or something similar)
+        const response = await fetch(`${API_BASE_url}/candidates/${candidateId}/evaluate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId, answers }),
+        });
+        if (!response.ok) throw new Error("Failed to submit answers");
+        return response.json();
+    },
+
+    // Candidates
+    getCandidates: async (orgId: string) => {
+        const response = await fetch(`${API_BASE_url}/organizations/${orgId}/candidates`);
+        if (!response.ok) throw new Error("Failed to fetch candidates");
+        return response.json();
+    },
+
+    decideCandidate: async (candidateId: string, threshold: number) => {
+        const response = await fetch(`${API_BASE_url}/candidates/${candidateId}/decide`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threshold }),
+        });
+        if (!response.ok) throw new Error("Decision failed");
+        return response.json();
+    },
+
+    // Job Management
+    updateJob: async (jobId: string, data: { title: string; description: string; requiredSkills: string[] }) => {
+        const response = await fetch(`${API_BASE_url}/jobs/${jobId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update job");
+        return response;
+    },
+
+    deleteJob: async (jobId: string) => {
+        const response = await fetch(`${API_BASE_url}/jobs/${jobId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error("Failed to delete job");
+        return response;
+    },
+
+    // Question Management
+    updateQuestion: async (questionId: string, data: { questionText: string; sampleAnswer: string; keywords: string[]; type: string }) => {
+        const response = await fetch(`${API_BASE_url}/questions/${questionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update question");
+        return response;
+    },
+
+    // Audit
+    getAuditLogs: async (orgId: string) => {
+        const response = await fetch(`${API_BASE_url}/organizations/${orgId}/audit-logs`);
+        if (!response.ok) throw new Error("Failed to fetch audit logs");
+        return response.json();
+    },
 };

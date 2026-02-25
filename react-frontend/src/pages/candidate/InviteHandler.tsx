@@ -33,8 +33,12 @@ export default function InviteHandler() {
                     email: data.candidateEmail,
                     name: data.candidateName,
                     jobTitle: data.jobTitle,
-                    organizationId: data.organizationId
+                    organizationId: data.organizationId,
+                    jobId: data.jobId
                 }));
+
+                // Also store the token just in case we need to reference it
+                sessionStorage.setItem('invite_token', token);
 
                 setStatus('success');
 

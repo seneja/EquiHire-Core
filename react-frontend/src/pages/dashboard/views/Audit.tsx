@@ -1,132 +1,168 @@
 import { useState, useEffect } from 'react';
 import { useAuthContext } from "@asgardeo/auth-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, ShieldAlert, CheckCircle, BarChart3, Users } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { API } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Activity, Shield, Clock, Users, AlertCircle } from "lucide-react";
+
+type AuditLog = {
+    id: string;
+    action: string;
+    actor: string;
+    target: string;
+    details: string;
+    created_at: string;
+};
 
 export default function AuditAndStatistics() {
     const { state } = useAuthContext();
-    // In a real app, these would be fetched from the backend API we planned
-    const [logs, setLogs] = useState<any[]>([]);
-    const [stats, setStats] = useState<any>({
-        totalInterviews: 0,
-        avgScore: 0,
-        issuesDetected: 0
-    });
+    const [logs, setLogs] = useState<AuditLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [stats, setStats] = useState({ total: 0, today: 0, actors: 0 });
 
     useEffect(() => {
-        // Mock data fetch for UI showcase
         if (state.sub) {
-            setStats({
-                totalInterviews: 124,
-                avgScore: 76.5,
-                issuesDetected: 3
-            });
-
-            setLogs([
-                { id: 1, action: "Evaluated Answer", entity: "Candidate", details: "Scored 85/100 for Python logic", time: "10 mins ago" },
-                { id: 2, action: "Created Job", entity: "Job", details: "Senior React Developer", time: "2 hours ago" },
-                { id: 3, action: "System Login", entity: "Recruiter", details: "Successful login via Asgardeo", time: "5 hours ago" },
-                { id: 4, action: "Flagged Content", entity: "Candidate", details: "Cheating attempt suspected", time: "1 day ago", alert: true }
-            ]);
+            loadData(state.sub);
         }
     }, [state.sub]);
 
+    const loadData = async (userId: string) => {
+        setIsLoading(true);
+        try {
+            const org = await API.getOrganization(userId);
+            if (org && org.id) {
+                const data = await API.getAuditLogs(org.id);
+                setLogs(data || []);
+
+                // Compute stats
+                const today = new Date().toDateString();
+                const todayLogs = (data || []).filter((l: AuditLog) => new Date(l.created_at).toDateString() === today);
+                const uniqueActors = new Set((data || []).map((l: AuditLog) => l.actor));
+                setStats({
+                    total: (data || []).length,
+                    today: todayLogs.length,
+                    actors: uniqueActors.size,
+                });
+            }
+        } catch (err) {
+            console.error("Failed to load audit logs", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const getActionColor = (action: string) => {
+        const a = action.toLowerCase();
+        if (a.includes('delete') || a.includes('remove')) return 'text-red-600 bg-red-50';
+        if (a.includes('create') || a.includes('add') || a.includes('invite')) return 'text-green-600 bg-green-50';
+        if (a.includes('update') || a.includes('edit')) return 'text-blue-600 bg-blue-50';
+        if (a.includes('login') || a.includes('auth')) return 'text-purple-600 bg-purple-50';
+        return 'text-gray-600 bg-gray-50';
+    };
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in fade-in duration-500">
             <div>
                 <h2 className="text-2xl font-bold text-gray-900">Audit & Statistics</h2>
                 <p className="text-gray-500">Monitor system interactions and evaluate overall candidate performance.</p>
             </div>
 
-            <Tabs defaultValue="overview" className="space-y-6">
-                <TabsList className="bg-gray-100 p-1">
-                    <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Overview</TabsTrigger>
-                    <TabsTrigger value="audit-logs" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">System Audit Logs</TabsTrigger>
-                </TabsList>
-
-                {/* Overview / Statistics Tab */}
-                <TabsContent value="overview" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                                <CardTitle className="text-sm font-medium text-gray-500">Total Interviews Evaluated</CardTitle>
-                                <Users className="h-4 w-4 text-gray-400" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-gray-900">{stats.totalInterviews}</div>
-                                <p className="text-xs text-gray-500 mt-1">+12% from last month</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                                <CardTitle className="text-sm font-medium text-gray-500">Average Candidate Score</CardTitle>
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-gray-900">{stats.avgScore}%</div>
-                                <p className="text-xs text-gray-500 mt-1">Across all job postings</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                                <CardTitle className="text-sm font-medium text-gray-500">Anomalies Detected</CardTitle>
-                                <ShieldAlert className="h-4 w-4 text-red-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-gray-900">{stats.issuesDetected}</div>
-                                <p className="text-xs text-red-500 mt-1">Requires manual review</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg">Performance Trends</CardTitle>
-                            <CardDescription>Average scores vs questions difficulty over time.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[300px] flex items-center justify-center border-t border-gray-100 bg-gray-50/50">
-                            <div className="text-center text-gray-400 flex flex-col items-center">
-                                <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
-                                <p className="text-sm">Chart visualization will be populated when API is connected.</p>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="shadow-sm border-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-lg bg-orange-50">
+                                <Activity className="w-5 h-5 text-[#FF7300]" />
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Audit Logs Tab */}
-                <TabsContent value="audit-logs">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg">Recent Interface Activity</CardTitle>
-                            <CardDescription>A complete log of system actions and evaluations.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {logs.map((log) => (
-                                    <div key={log.id} className={`p-4 border rounded-lg flex items-start justify-between ${log.alert ? 'bg-red-50 border-red-100' : 'bg-white'}`}>
-                                        <div className="flex items-start">
-                                            <div className={`mt-0.5 mr-4 p-2 rounded-full ${log.alert ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                                                {log.alert ? <ShieldAlert className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
-                                            </div>
-                                            <div>
-                                                <p className={`font-medium text-sm ${log.alert ? 'text-red-900' : 'text-gray-900'}`}>
-                                                    {log.action} <span className="text-gray-500 font-normal">on {log.entity}</span>
-                                                </p>
-                                                <p className={`text-sm mt-1 ${log.alert ? 'text-red-700' : 'text-gray-600'}`}>{log.details}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-xs text-gray-500 whitespace-nowrap">{log.time}</div>
-                                    </div>
-                                ))}
-                                {logs.length === 0 && (
-                                    <div className="text-center py-8 text-gray-500 text-sm">No activity recorded yet.</div>
-                                )}
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                                <p className="text-xs text-gray-500">Total Events</p>
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="shadow-sm border-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-lg bg-blue-50">
+                                <Clock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{stats.today}</p>
+                                <p className="text-xs text-gray-500">Today's Events</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="shadow-sm border-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-lg bg-green-50">
+                                <Users className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{stats.actors}</p>
+                                <p className="text-xs text-gray-500">Unique Actors</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Audit Log Table */}
+            <Card className="shadow-sm border-gray-200">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-gray-500" />
+                        Audit Trail
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                            <Loader2 className="w-6 h-6 animate-spin mb-2 text-[#FF7300]" />
+                            Loading audit logs...
+                        </div>
+                    ) : logs.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                            <AlertCircle className="w-8 h-8 mb-3" />
+                            <p className="text-sm">No audit logs recorded yet.</p>
+                            <p className="text-xs text-gray-400 mt-1">Actions will appear here as they happen.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-auto max-h-[500px]">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100 sticky top-0">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left">Time</th>
+                                        <th className="px-6 py-3 text-left">Action</th>
+                                        <th className="px-6 py-3 text-left">Actor</th>
+                                        <th className="px-6 py-3 text-left">Target</th>
+                                        <th className="px-6 py-3 text-left">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {logs.map((log) => (
+                                        <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-3 text-gray-400 whitespace-nowrap text-xs">
+                                                {new Date(log.created_at).toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-3 text-gray-700 font-medium text-xs">{log.actor}</td>
+                                            <td className="px-6 py-3 text-gray-600 text-xs font-mono">{log.target}</td>
+                                            <td className="px-6 py-3 text-gray-500 text-xs max-w-[200px] truncate">{log.details}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

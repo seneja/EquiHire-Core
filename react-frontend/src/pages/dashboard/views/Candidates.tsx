@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useAuthContext } from "@asgardeo/auth-react";
+import { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Lock, Unlock, Clock, FileText, ChevronRight, XCircle, Settings2, Loader2 } from "lucide-react";
 
-// Organization ID from Auth/Context normally. Hardcoding for demo purposes
-const ORGANIZATION_ID = "04b66df8-12cd-4384-8848-3a99252a1aa0";
-
 export default function CandidateManager() {
+    const { state } = useAuthContext();
     const [statusFilter, setStatusFilter] = useState("all");
     const [activityFilter, setActivityFilter] = useState("all"); // all, seen, unseen
     const [candidates, setCandidates] = useState<any[]>([]);
@@ -14,19 +14,32 @@ export default function CandidateManager() {
     const [isLoading, setIsLoading] = useState(true);
     const [threshold, setThreshold] = useState<number>(70);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [orgId, setOrgId] = useState<string>("");
 
     useEffect(() => {
-        fetchCandidates();
-    }, []);
+        if (state.sub) {
+            loadData(state.sub);
+        }
+    }, [state.sub]);
 
-    const fetchCandidates = async () => {
+    const loadData = async (userId: string) => {
+        try {
+            const org = await API.getOrganization(userId);
+            if (org && org.id) {
+                setOrgId(org.id);
+                fetchCandidates(org.id);
+            }
+        } catch (error) {
+            console.error("Failed to load organization:", error);
+            setIsLoading(false);
+        }
+    };
+
+    const fetchCandidates = async (organizationId: string) => {
         setIsLoading(true);
         try {
-            const res = await fetch(`http://localhost:9090/api/organizations/${ORGANIZATION_ID}/candidates`);
-            if (res.ok) {
-                const data = await res.json();
-                setCandidates(data);
-            }
+            const data = await API.getCandidates(organizationId);
+            setCandidates(data);
         } catch (error) {
             console.error("Failed to fetch candidates:", error);
         } finally {
@@ -52,16 +65,10 @@ export default function CandidateManager() {
     const handleApplyDecision = async (candidateId: string) => {
         setIsProcessing(true);
         try {
-            const res = await fetch(`http://localhost:9090/api/candidates/${candidateId}/decide`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ threshold })
-            });
-            if (res.ok) {
-                // Refresh list
-                fetchCandidates();
-                setSelectedCandidate(null);
-            }
+            await API.decideCandidate(candidateId, threshold);
+            // Refresh list
+            fetchCandidates(orgId);
+            setSelectedCandidate(null);
         } catch (error) {
             console.error("Decision failed:", error);
         } finally {
@@ -79,7 +86,7 @@ export default function CandidateManager() {
     };
 
     return (
-        <div className="flex h-[calc(100vh-8rem)] gap-6">
+        <div className="flex h-[calc(100vh-8rem)] gap-6 animate-in fade-in duration-500">
             {/* List Side */}
             <div className={`flex-1 flex flex-col space-y-4 transition-all ${selectedCandidate ? 'w-1/2' : 'w-full'}`}>
                 <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -136,6 +143,12 @@ export default function CandidateManager() {
                                         <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
                                             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#FF7300]" />
                                             Loading candidates...
+                                        </td>
+                                    </tr>
+                                ) : filteredCandidates.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-10 text-center text-gray-400">
+                                            No candidates found.
                                         </td>
                                     </tr>
                                 ) : filteredCandidates.map((c) => (

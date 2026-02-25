@@ -253,3 +253,27 @@ public type DecisionResponse record {
     boolean emailSent;
     string message;
 };
+
+# Request to update a Job.
+#
+# + title - Job title
+# + description - Job description
+# + requiredSkills - List of required skills
+public type JobUpdateRequest record {
+    string title;
+    string description;
+    string[] requiredSkills;
+};
+
+# Request to update a Question.
+#
+# + questionText - Updated question text
+# + sampleAnswer - Updated sample answer
+# + keywords - Updated keywords
+# + type - Updated question type
+public type QuestionUpdateRequest record {
+    string questionText;
+    string sampleAnswer;
+    string[] keywords;
+    string 'type = "paragraph";
+};

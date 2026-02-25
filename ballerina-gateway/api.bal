@@ -171,6 +171,33 @@ service /api on apiListener {
         return http:NO_CONTENT;
     }
 
+    resource function put jobs/[string jobId](@http:Payload types:JobUpdateRequest payload) returns http:Ok|http:InternalServerError|error {
+        error? result = dbClient->updateJob(jobId, payload.title, payload.description, payload.requiredSkills);
+        if result is error {
+            io:println("Error updating job: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:OK;
+    }
+
+    resource function delete jobs/[string jobId]() returns http:NoContent|http:InternalServerError|error {
+        error? result = dbClient->deleteJob(jobId);
+        if result is error {
+            io:println("Error deleting job: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:NO_CONTENT;
+    }
+
+    resource function put questions/[string questionId](@http:Payload types:QuestionUpdateRequest payload) returns http:Ok|http:InternalServerError|error {
+        error? result = dbClient->updateQuestion(questionId, payload.questionText, payload.sampleAnswer, payload.keywords, payload.'type);
+        if result is error {
+            io:println("Error updating question: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:OK;
+    }
+
     # Retrieves all jobs for the authenticated recruiter.
     #
     # + userId - User ID

@@ -409,7 +409,7 @@ public client class Repository {
         // Note: For efficiency, one might store OrgID in JWT or session, but here we look it up.
         // Assuming we pass OrgId or lookup. For now, let's filter by recruiter_id or organization_id.
 
-        string path = string `/rest/v1/jobs?recruiter_id=eq.${recruiterId}&select=id,title,organization_id,created_at`;
+        string path = string `/rest/v1/jobs?recruiter_id=eq.${recruiterId}&select=id,title,description,required_skills,organization_id,created_at`;
         http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
 
         if response.statusCode >= 300 {
@@ -516,6 +516,8 @@ public client class Repository {
     }
 
     # Retrieves audit logs for an organization.
+    # + organizationId - The organization ID
+    # + return - An array of audit logs or an error
     remote function getAuditLogs(string organizationId) returns json[]|error {
         string path = string `/rest/v1/audit_logs?organization_id=eq.${organizationId}&select=*&order=created_at.desc`;
         http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
@@ -529,6 +531,8 @@ public client class Repository {
     }
 
     # Retrieves evaluation templates for an organization.
+    # + organizationId - The organization ID
+    # + return - An array of evaluation templates or an error
     remote function getEvaluationTemplates(string organizationId) returns json[]|error {
         string path = string `/rest/v1/evaluation_templates?or=(is_system_template.eq.true,organization_id.eq.${organizationId})&select=*&order=created_at.desc`;
         http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
@@ -542,6 +546,12 @@ public client class Repository {
     }
 
     # Creates an evaluation template.
+    # + name - The name of the template
+    # + description - The description of the template
+    # + 'type - The type of evaluation (e.g., QUESTIONNAIRE, RESUME_SCREENING)
+    # + promptTemplate - The prompt template text
+    # + organizationId - The organization ID
+    # + return - The created template or an error
     remote function createEvaluationTemplate(string name, string description, string 'type, string promptTemplate, string organizationId) returns json|error {
         json payload = {
             "name": name,
@@ -568,6 +578,13 @@ public client class Repository {
     }
 
     # Updates an evaluation template.
+    # + id - The ID of the template
+    # + name - The new name of the template
+    # + description - The new description
+    # + 'type - The new type of evaluation
+    # + promptTemplate - The new prompt template text
+    # + organizationId - The organization ID to verify ownership
+    # + return - Error if failed
     remote function updateEvaluationTemplate(string id, string name, string description, string 'type, string promptTemplate, string organizationId) returns error? {
         json payload = {
             "name": name,
@@ -586,6 +603,9 @@ public client class Repository {
     }
 
     # Deletes an evaluation template.
+    # + id - The evaluation template ID
+    # + organizationId - The organization ID to ensure only org's templates are deleted
+    # + return - Error if failed
     remote function deleteEvaluationTemplate(string id, string organizationId) returns error? {
         string path = string `/rest/v1/evaluation_templates?id=eq.${id}&organization_id=eq.${organizationId}&is_system_template=eq.false`;
         http:Response response = check self.httpClient->delete(path, headers = self.headers, targetType = http:Response);
@@ -597,6 +617,8 @@ public client class Repository {
     }
 
     # Fetches candidate contact details from interview_invitations via anonymous_profiles
+    # + candidateId - The ID of the candidate
+    # + return - Candidate's real name, email, and job title, or an error if not found
     remote function getCandidateContact(string candidateId) returns record {|string candidateName; string candidateEmail; string jobTitle;|}|error {
         string profPath = string `/rest/v1/anonymous_profiles?candidate_id=eq.${candidateId}&select=invitation_id`;
         http:Response profResp = check self.httpClient->get(profPath, headers = self.headers, targetType = http:Response);
@@ -628,6 +650,8 @@ public client class Repository {
     }
 
     # Fetches candidate evaluation result
+    # + candidateId - The ID of the candidate
+    # + return - Overall score and summary feedback of the candidate, or an error if not found
     remote function getCandidateEvaluation(string candidateId) returns record {|decimal overallScore; string summaryFeedback;|}|error {
         string path = string `/rest/v1/evaluation_results?candidate_id=eq.${candidateId}&select=overall_score,summary_feedback`;
         http:Response resp = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
@@ -793,5 +817,71 @@ public client class Repository {
         return;
     }
 
-}
+    # Updates a job's details.
+    #
+    # + jobId - Job ID
+    # + title - New title
+    # + description - New description
+    # + requiredSkills - New required skills
+    # + return - Error if failed
+    remote function updateJob(string jobId, string title, string description, string[] requiredSkills) returns error? {
+        json payload = {
+            "title": title,
+            "description": description,
+            "required_skills": requiredSkills
+        };
 
+        string path = string `/rest/v1/jobs?id=eq.${jobId}`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json errorBody = check response.getJsonPayload();
+            return error("Supabase Error: " + errorBody.toString());
+        }
+        return;
+    }
+
+    # Deletes a job.
+    #
+    # + jobId - Job ID
+    # + return - Error if failed
+    remote function deleteJob(string jobId) returns error? {
+        string path = string `/rest/v1/jobs?id=eq.${jobId}`;
+        http:Response response = check self.httpClient->delete(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Delete failed";
+            return error("Supabase Error: " + message);
+        }
+        return;
+    }
+
+    # Updates a question.
+    #
+    # + questionId - Question ID
+    # + questionText - New question text
+    # + sampleAnswer - New sample answer
+    # + keywords - New keywords
+    # + questionType - New question type
+    # + return - Error if failed
+    remote function updateQuestion(string questionId, string questionText, string sampleAnswer, string[] keywords, string questionType) returns error? {
+        json payload = {
+            "question_text": questionText,
+            "sample_answer": sampleAnswer,
+            "keywords": keywords,
+            "type": questionType
+        };
+
+        string path = string `/rest/v1/questions?id=eq.${questionId}`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Update failed";
+            return error("Supabase Error: " + message);
+        }
+        return;
+    }
+
+}

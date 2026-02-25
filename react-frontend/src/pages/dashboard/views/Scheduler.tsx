@@ -44,7 +44,7 @@ export default function InterviewScheduler() {
     }, [state.sub]);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             <div>
                 <h2 className="text-2xl font-bold text-gray-900">Schedule Interview</h2>
                 <p className="text-gray-500">Send magic link invitations to candidates for blind interview sessions.</p>
@@ -86,8 +86,8 @@ export default function InterviewScheduler() {
                                                     {record.email}
                                                 </span>
                                                 <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider shadow-sm ${record.status === 'opened' ? 'bg-green-100 text-green-700 border border-green-200' :
-                                                        record.status === 'delivered' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                                                            'bg-gray-100 text-gray-600 border border-gray-200'
+                                                    record.status === 'delivered' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                                        'bg-gray-100 text-gray-600 border border-gray-200'
                                                     }`}>
                                                     {record.status}
                                                 </span>
