@@ -121,9 +121,9 @@ service /api on apiListener {
         string|error jobId = dbClient->createJob(
             payload.title,
             payload.description,
-            payload.requiredSkills, 
-            payload.organizationId,  
-            realRecruiterId 
+            payload.requiredSkills,
+            payload.organizationId,
+            realRecruiterId
         );
 
         if jobId is error {
@@ -133,24 +133,22 @@ service /api on apiListener {
         return {id: jobId};
     }
 
-    # Saves screening questions for a specific job in bulk to the new structured table.
-    #
-    # + payload - List of questions with their metadata
-    # + return - Created status or error
-    resource function post jobs/questions(@http:Payload types:QuestionPayload payload) returns http:Created|http:InternalServerError|error {
+    resource function post jobs/questions(@http:Payload types:QuestionPayload payload) returns http:Created|http:BadRequest|http:InternalServerError|error {
         foreach var q in payload.questions {
-            // Using '->' because createJobQuestion is a remote function
+
             error? result = dbClient->createJobQuestion(
-                q.jobId,
-                q.questionText,
-                q.sampleAnswer,
-                q.keywords,
-                q.questionType
+            q.jobId,
+            q.questionText,
+            q.sampleAnswer,
+            q.keywords,
+            q.'type
             );
 
             if result is error {
                 io:println("Error creating question: ", result.message());
-                return http:INTERNAL_SERVER_ERROR;
+                return <http:InternalServerError>{
+                    body: {"error": result.message()}
+                };
             }
         }
         return http:CREATED;
@@ -171,6 +169,33 @@ service /api on apiListener {
             return http:INTERNAL_SERVER_ERROR;
         }
         return http:NO_CONTENT;
+    }
+
+    resource function put jobs/[string jobId](@http:Payload types:JobUpdateRequest payload) returns http:Ok|http:InternalServerError|error {
+        error? result = dbClient->updateJob(jobId, payload.title, payload.description, payload.requiredSkills);
+        if result is error {
+            io:println("Error updating job: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:OK;
+    }
+
+    resource function delete jobs/[string jobId]() returns http:NoContent|http:InternalServerError|error {
+        error? result = dbClient->deleteJob(jobId);
+        if result is error {
+            io:println("Error deleting job: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:NO_CONTENT;
+    }
+
+    resource function put questions/[string questionId](@http:Payload types:QuestionUpdateRequest payload) returns http:Ok|http:InternalServerError|error {
+        error? result = dbClient->updateQuestion(questionId, payload.questionText, payload.sampleAnswer, payload.keywords, payload.'type);
+        if result is error {
+            io:println("Error updating question: ", result.message());
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:OK;
     }
 
     # Retrieves all jobs for the authenticated recruiter.
@@ -458,6 +483,151 @@ service /api on apiListener {
             jobTitle: result.job_title,
             organizationId: result.organization_id,
             jobId: result.job_id
+        };
+    }
+
+    resource function get organizations/[string organizationId]/audit\-logs() returns json[]|http:InternalServerError|error {
+        json[]|error logs = dbClient->getAuditLogs(organizationId);
+        if logs is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return logs;
+    }
+
+    resource function get organizations/[string organizationId]/evaluation\-templates() returns json[]|http:InternalServerError|error {
+        json[]|error templates = dbClient->getEvaluationTemplates(organizationId);
+        if templates is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return templates;
+    }
+
+    resource function post evaluation\-templates(@http:Payload json payload) returns json|http:InternalServerError|error {
+        map<json> data = <map<json>>payload;
+        string name = data["name"].toString();
+        string description = data["description"].toString();
+        string 'type = data["type"].toString();
+        string promptTemplate = data["prompt_template"].toString();
+        string organizationId = data["organization_id"].toString();
+
+        json|error result = dbClient->createEvaluationTemplate(name, description, 'type, promptTemplate, organizationId);
+        if result is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return result;
+    }
+
+    resource function put evaluation\-templates/[string id](@http:Payload json payload) returns http:Ok|http:InternalServerError|error {
+        map<json> data = <map<json>>payload;
+        string name = data["name"].toString();
+        string description = data["description"].toString();
+        string 'type = data["type"].toString();
+        string promptTemplate = data["prompt_template"].toString();
+        string organizationId = data["organization_id"].toString();
+
+        error? result = dbClient->updateEvaluationTemplate(id, name, description, 'type, promptTemplate, organizationId);
+        if result is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:OK;
+    }
+
+    resource function delete evaluation\-templates/[string id](string organizationId) returns http:NoContent|http:InternalServerError|error {
+        error? result = dbClient->deleteEvaluationTemplate(id, organizationId);
+        if result is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return http:NO_CONTENT;
+    }
+
+    resource function get organizations/[string organizationId]/candidates() returns types:CandidateResponse[]|http:InternalServerError|error {
+        types:CandidateResponse[]|error candidates = dbClient->getCandidates(organizationId);
+        if candidates is error {
+            return http:INTERNAL_SERVER_ERROR;
+        }
+        return candidates;
+    }
+
+    resource function post candidates/[string candidateId]/decide(@http:Payload types:DecisionRequest payload) returns types:DecisionResponse|http:InternalServerError|error {
+        // 1. Get Candidate Evaluation Score
+        record {|decimal overallScore; string summaryFeedback;|}|error eval = dbClient->getCandidateEvaluation(candidateId);
+        if eval is error {
+            io:println("Error getting evaluation: ", eval);
+            return http:INTERNAL_SERVER_ERROR;
+        }
+
+        // 2. Get Candidate Contact Info
+        record {|string candidateName; string candidateEmail; string jobTitle;|}|error contact = dbClient->getCandidateContact(candidateId);
+        if contact is error {
+            io:println("Error getting contact info: ", contact);
+            return http:INTERNAL_SERVER_ERROR;
+        }
+
+        // 3. Determine Pass/Fail based on Threshold
+        boolean isPass = eval.overallScore >= payload.threshold;
+        string newStatus = isPass ? "accepted" : "rejected";
+
+        // 4. Update Status in DB
+        error? updateErr = dbClient->updateCandidateStatus(candidateId, newStatus);
+        if updateErr is error {
+            io:println("Error updating status: ", updateErr);
+            return http:INTERNAL_SERVER_ERROR;
+        }
+
+        // 5. Build and Send Email
+        boolean emailSent = false;
+        string msg = "Decision processed successfully.";
+
+        if isPass {
+            error? emailErr = emailUtils:sendAcceptanceEmail(smtpClient, smtpFromEmail, contact.candidateEmail, contact.candidateName, contact.jobTitle);
+            if emailErr is error {
+                io:println("Failed to send acceptance email: ", emailErr);
+                msg = "Decision processed, but failed to send email.";
+            } else {
+                emailSent = true;
+                msg = "Decision processed and acceptance email sent.";
+            }
+        } else {
+            // Generate rejection email via Python AI Engine
+            json emailPayload = {
+                "candidate_name": contact.candidateName,
+                "job_title": contact.jobTitle,
+                "summary_feedback": eval.summaryFeedback
+            };
+
+            http:Response|error aiResp = pythonClient->post("/generate/rejection-email", emailPayload);
+            if aiResp is error {
+                io:println("Failed to reach Python AI Engine: ", aiResp);
+                msg = "Decision processed, but AI email generation failed.";
+            } else {
+                json|error responsePayload = aiResp.getJsonPayload();
+                if responsePayload is map<json> {
+                    var emailBody = responsePayload["email_body"];
+                    if emailBody is string {
+                        error? emailErr = emailUtils:sendRejectionEmail(smtpClient, smtpFromEmail, contact.candidateEmail, contact.candidateName, contact.jobTitle, emailBody);
+                        if emailErr is error {
+                            io:println("Failed to send rejection email: ", emailErr);
+                            msg = "Decision processed, AI generated email, but sending failed.";
+                        } else {
+                            emailSent = true;
+                            msg = "Decision processed and explainable rejection email sent.";
+                        }
+                    } else {
+                        io:println("Failed to parse email_body as string");
+                        msg = "Decision processed, but AI response format invalid.";
+                    }
+                } else {
+                    io:println("Failed to parse AI response: ", responsePayload);
+                    msg = "Decision processed, but AI response parsing failed.";
+                }
+            }
+        }
+
+        return {
+            candidateId: candidateId,
+            pass: isPass,
+            emailSent: emailSent,
+            message: msg
         };
     }
 }

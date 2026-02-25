@@ -409,7 +409,7 @@ public client class Repository {
         // Note: For efficiency, one might store OrgID in JWT or session, but here we look it up.
         // Assuming we pass OrgId or lookup. For now, let's filter by recruiter_id or organization_id.
 
-        string path = string `/rest/v1/jobs?recruiter_id=eq.${recruiterId}&select=id,title,created_at`;
+        string path = string `/rest/v1/jobs?recruiter_id=eq.${recruiterId}&select=id,title,description,required_skills,organization_id,created_at`;
         http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
 
         if response.statusCode >= 300 {
@@ -446,10 +446,13 @@ public client class Repository {
         };
 
         http:Response response = check self.httpClient->post("/rest/v1/questions", payload, headers = self.headers);
-
+        if response.statusCode == 201 || response.statusCode == 200 {
+            return ();
+        }
         if response.statusCode >= 300 {
-            json errorBody = check response.getJsonPayload();
-            return error("Supabase Error: " + errorBody.toString());
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Database insertion failed";
+            return error("Supabase Error: " + message);
         }
         return ();
     }
@@ -459,6 +462,7 @@ public client class Repository {
     # + jobId - Job ID
     # + return - List of questions or Error
     remote function getJobQuestions(string jobId) returns types:QuestionItem[]|error {
+
         string path = string `/rest/v1/questions?job_id=eq.${jobId}&select=*&order=created_at.asc`;
         http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
 
@@ -473,8 +477,6 @@ public client class Repository {
         foreach json result in results {
             map<json> qData = <map<json>>result;
 
-            // Handle keywords conversion from JSONB/Array to string[]
-            // Supabase returns JSON array for JSONB column
             string[] keywords = [];
             if qData["keywords"] is json[] {
                 json[] kArray = <json[]>qData["keywords"];
@@ -489,26 +491,397 @@ public client class Repository {
                 questionText: qData["question_text"].toString(),
                 sampleAnswer: qData["sample_answer"] is () ? "" : qData["sample_answer"].toString(),
                 keywords: keywords,
-                questionType: qData["type"].toString()
+                'type: qData["type"].toString()
             });
         }
         return questions;
     }
 
     # Deletes a question.
-    #
     # + questionId - Question ID
     # + return - Error if failed
     remote function deleteQuestion(string questionId) returns error? {
+
         string path = string `/rest/v1/questions?id=eq.${questionId}`;
+
         http:Response response = check self.httpClient->delete(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Delete failed";
+            return error("Supabase Error: " + message);
+        }
+        return ();
+    }
+
+    # Retrieves audit logs for an organization.
+    # + organizationId - The organization ID
+    # + return - An array of audit logs or an error
+    remote function getAuditLogs(string organizationId) returns json[]|error {
+        string path = string `/rest/v1/audit_logs?organization_id=eq.${organizationId}&select=*&order=created_at.desc`;
+        http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+
+        json body = check response.getJsonPayload();
+        return <json[]>body;
+    }
+
+    # Retrieves evaluation templates for an organization.
+    # + organizationId - The organization ID
+    # + return - An array of evaluation templates or an error
+    remote function getEvaluationTemplates(string organizationId) returns json[]|error {
+        string path = string `/rest/v1/evaluation_templates?or=(is_system_template.eq.true,organization_id.eq.${organizationId})&select=*&order=created_at.desc`;
+        http:Response response = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+
+        json body = check response.getJsonPayload();
+        return <json[]>body;
+    }
+
+    # Creates an evaluation template.
+    # + name - The name of the template
+    # + description - The description of the template
+    # + 'type - The type of evaluation (e.g., QUESTIONNAIRE, RESUME_SCREENING)
+    # + promptTemplate - The prompt template text
+    # + organizationId - The organization ID
+    # + return - The created template or an error
+    remote function createEvaluationTemplate(string name, string description, string 'type, string promptTemplate, string organizationId) returns json|error {
+        json payload = {
+            "name": name,
+            "description": description,
+            "type": 'type,
+            "prompt_template": promptTemplate,
+            "organization_id": organizationId,
+            "is_system_template": false
+        };
+
+        http:Response response = check self.httpClient->post("/rest/v1/evaluation_templates", payload, headers = self.headers);
 
         if response.statusCode >= 300 {
             json errorBody = check response.getJsonPayload();
             return error("Supabase Error: " + errorBody.toString());
         }
-        return ();
+
+        json body = check response.getJsonPayload();
+        json[] templates = <json[]>body;
+        if templates.length() > 0 {
+            return templates[0];
+        }
+        return error("Failed to create evaluation template: No data returned");
+    }
+
+    # Updates an evaluation template.
+    # + id - The ID of the template
+    # + name - The new name of the template
+    # + description - The new description
+    # + 'type - The new type of evaluation
+    # + promptTemplate - The new prompt template text
+    # + organizationId - The organization ID to verify ownership
+    # + return - Error if failed
+    remote function updateEvaluationTemplate(string id, string name, string description, string 'type, string promptTemplate, string organizationId) returns error? {
+        json payload = {
+            "name": name,
+            "description": description,
+            "type": 'type,
+            "prompt_template": promptTemplate
+        };
+
+        string path = string `/rest/v1/evaluation_templates?id=eq.${id}&organization_id=eq.${organizationId}&is_system_template=eq.false`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+        return;
+    }
+
+    # Deletes an evaluation template.
+    # + id - The evaluation template ID
+    # + organizationId - The organization ID to ensure only org's templates are deleted
+    # + return - Error if failed
+    remote function deleteEvaluationTemplate(string id, string organizationId) returns error? {
+        string path = string `/rest/v1/evaluation_templates?id=eq.${id}&organization_id=eq.${organizationId}&is_system_template=eq.false`;
+        http:Response response = check self.httpClient->delete(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error: " + response.statusCode.toString());
+        }
+        return;
+    }
+
+    # Fetches candidate contact details from interview_invitations via anonymous_profiles
+    # + candidateId - The ID of the candidate
+    # + return - Candidate's real name, email, and job title, or an error if not found
+    remote function getCandidateContact(string candidateId) returns record {|string candidateName; string candidateEmail; string jobTitle;|}|error {
+        string profPath = string `/rest/v1/anonymous_profiles?candidate_id=eq.${candidateId}&select=invitation_id`;
+        http:Response profResp = check self.httpClient->get(profPath, headers = self.headers, targetType = http:Response);
+        if profResp.statusCode >= 300 {
+            return error("Failed to fetch profile");
+        }
+        json[] profs = <json[]>check profResp.getJsonPayload();
+        if profs.length() == 0 {
+            return error("Profile not found");
+        }
+        string invId = (<map<json>>profs[0])["invitation_id"].toString();
+
+        string invPath = string `/rest/v1/interview_invitations?id=eq.${invId}&select=candidate_name,candidate_email,job_title`;
+        http:Response invResp = check self.httpClient->get(invPath, headers = self.headers, targetType = http:Response);
+        if invResp.statusCode >= 300 {
+            return error("Failed to fetch invitation");
+        }
+        json[] invs = <json[]>check invResp.getJsonPayload();
+        if invs.length() == 0 {
+            return error("Invitation not found");
+        }
+
+        map<json> inv = <map<json>>invs[0];
+        return {
+            candidateName: inv["candidate_name"].toString(),
+            candidateEmail: inv["candidate_email"].toString(),
+            jobTitle: inv["job_title"].toString()
+        };
+    }
+
+    # Fetches candidate evaluation result
+    # + candidateId - The ID of the candidate
+    # + return - Overall score and summary feedback of the candidate, or an error if not found
+    remote function getCandidateEvaluation(string candidateId) returns record {|decimal overallScore; string summaryFeedback;|}|error {
+        string path = string `/rest/v1/evaluation_results?candidate_id=eq.${candidateId}&select=overall_score,summary_feedback`;
+        http:Response resp = check self.httpClient->get(path, headers = self.headers, targetType = http:Response);
+        if resp.statusCode >= 300 {
+            return error("Failed to fetch evaluation");
+        }
+        json[] evals = <json[]>check resp.getJsonPayload();
+        if evals.length() == 0 {
+            return error("Evaluation not found");
+        }
+        map<json> eval = <map<json>>evals[0];
+
+        decimal score = 0d;
+        var sVal = eval["overall_score"];
+        if sVal != () {
+            decimal|error parsedScore = decimal:fromString(sVal.toString());
+            if parsedScore is decimal {
+                score = parsedScore;
+            }
+        }
+
+        string feedback = "";
+        var f = eval["summary_feedback"];
+        if f != () {
+            feedback = f.toString();
+        }
+
+        return {
+            overallScore: score,
+            summaryFeedback: feedback
+        };
+    }
+
+    # Fetches candidates for a specific organization's jobs.
+    # Joins anonymous_profiles, interview_invitations, jobs, and evaluation_results.
+    #
+    # + organizationId - The ID of the organization
+    # + return - List of json candidate records
+    remote function getCandidates(string organizationId) returns types:CandidateResponse[]|error {
+        // Since Supabase REST API doesn't easily do deep joins across 4 tables with custom business logic in one simple GET,
+        // we'll fetch profiles linked to the organization's jobs and assemble them here.
+        // In a production app, a PostgreSQL View or RPC function would be cleaner.
+
+        // 1. Get Jobs for the Org
+        string jobsPath = string `/rest/v1/jobs?organization_id=eq.${organizationId}&select=id,title`;
+        http:Response jobsResp = check self.httpClient->get(jobsPath, headers = self.headers, targetType = http:Response);
+        if jobsResp.statusCode >= 300 {
+            return error("Failed to fetch jobs");
+        }
+        json[] jobsList = <json[]>check jobsResp.getJsonPayload();
+
+        if jobsList.length() == 0 {
+            return []; // No jobs, no candidates
+        }
+
+        string jobIdsFilter = "in.(";
+        map<string> jobTitleMap = {};
+        foreach int i in 0 ..< jobsList.length() {
+            map<json> j = <map<json>>jobsList[i];
+            string jid = j["id"].toString();
+            jobIdsFilter += jid + (i == jobsList.length() - 1 ? ")" : ",");
+            jobTitleMap[jid] = j["title"].toString();
+        }
+
+        // 2. Get Profiles
+        string profilesPath = string `/rest/v1/anonymous_profiles?job_id=${jobIdsFilter}&select=candidate_id,job_id,status,created_at,invitation_id`;
+        http:Response profResp = check self.httpClient->get(profilesPath, headers = self.headers, targetType = http:Response);
+        if profResp.statusCode >= 300 {
+            return error("Failed to fetch profiles");
+        }
+        json[] profiles = <json[]>check profResp.getJsonPayload();
+
+        // 3. Get Evaluations
+        string evalPath = string `/rest/v1/evaluation_results?job_id=${jobIdsFilter}&select=candidate_id,overall_score,cv_score,skills_score,interview_score,summary_feedback`;
+        http:Response evalResp = check self.httpClient->get(evalPath, headers = self.headers, targetType = http:Response);
+        map<map<json>> evalMap = {};
+        if evalResp.statusCode < 300 {
+            json[] evals = <json[]>check evalResp.getJsonPayload();
+            foreach json e in evals {
+                map<json> em = <map<json>>e;
+                evalMap[em["candidate_id"].toString()] = em;
+            }
+        }
+
+        // 4. Get Invitations (for Names)
+        string invPath = string `/rest/v1/interview_invitations?organization_id=eq.${organizationId}&select=id,candidate_name`;
+        http:Response invResp = check self.httpClient->get(invPath, headers = self.headers, targetType = http:Response);
+        map<string> invMap = {};
+        if invResp.statusCode < 300 {
+            json[] invs = <json[]>check invResp.getJsonPayload();
+            foreach json iv in invs {
+                map<json> ivm = <map<json>>iv;
+                invMap[ivm["id"].toString()] = ivm["candidate_name"] is () ? "Unknown" : ivm["candidate_name"].toString();
+            }
+        }
+
+        types:CandidateResponse[] results = [];
+
+        foreach json p in profiles {
+            map<json> pm = <map<json>>p;
+            string cId = pm["candidate_id"].toString();
+            string jId = pm["job_id"].toString();
+            string status = pm["status"] is () ? "pending" : pm["status"].toString();
+            string invId = pm["invitation_id"] is () ? "" : pm["invitation_id"].toString();
+
+            map<json>? eData = evalMap[cId];
+
+            decimal score = 0d;
+            decimal cvScore = 0d;
+            decimal skillsScore = 0d;
+            decimal interviewScore = 0d;
+            string? feedback = ();
+
+            if eData is map<json> {
+                score = eData["overall_score"] is () ? 0d : <decimal>eData["overall_score"];
+                cvScore = eData["cv_score"] is () ? 0d : <decimal>eData["cv_score"];
+                skillsScore = eData["skills_score"] is () ? 0d : <decimal>eData["skills_score"];
+                interviewScore = eData["interview_score"] is () ? 0d : <decimal>eData["interview_score"];
+                feedback = eData["summary_feedback"] is () ? () : eData["summary_feedback"].toString();
+            }
+
+            string rawName = "Unknown Candidate";
+            if invId != "" && invMap.hasKey(invId) {
+                rawName = invMap.get(invId);
+            }
+
+            // PII Masking: If pending/screening/rejected, hide the name. Only accepted shows real name.
+            string displayName = (status == "accepted") ? rawName : string `Candidate #${cId.substring(0, 8)}`;
+
+            results.push({
+                candidateId: cId,
+                jobTitle: jobTitleMap.hasKey(jId) ? jobTitleMap.get(jId) : "Unknown Role",
+                candidateName: displayName,
+                status: status,
+                score: score,
+                appliedDate: pm["created_at"].toString(),
+                seen: true, // simplified for now
+                cvScore: cvScore,
+                skillsScore: skillsScore,
+                interviewScore: interviewScore,
+                summaryFeedback: feedback
+            });
+        }
+
+        return results;
+    }
+
+    # Updates a candidate's status in the anonymous_profiles table.
+    #
+    # + candidateId - The ID of the candidate
+    # + newStatus - The new status ('accepted', 'rejected', etc.)
+    # + return - Error if failed
+    remote function updateCandidateStatus(string candidateId, string newStatus) returns error? {
+        json payload = {
+            "status": newStatus
+        };
+        string path = string `/rest/v1/anonymous_profiles?candidate_id=eq.${candidateId}`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            return error("Supabase Error updating status: " + response.statusCode.toString());
+        }
+        return;
+    }
+
+    # Updates a job's details.
+    #
+    # + jobId - Job ID
+    # + title - New title
+    # + description - New description
+    # + requiredSkills - New required skills
+    # + return - Error if failed
+    remote function updateJob(string jobId, string title, string description, string[] requiredSkills) returns error? {
+        json payload = {
+            "title": title,
+            "description": description,
+            "required_skills": requiredSkills
+        };
+
+        string path = string `/rest/v1/jobs?id=eq.${jobId}`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json errorBody = check response.getJsonPayload();
+            return error("Supabase Error: " + errorBody.toString());
+        }
+        return;
+    }
+
+    # Deletes a job.
+    #
+    # + jobId - Job ID
+    # + return - Error if failed
+    remote function deleteJob(string jobId) returns error? {
+        string path = string `/rest/v1/jobs?id=eq.${jobId}`;
+        http:Response response = check self.httpClient->delete(path, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Delete failed";
+            return error("Supabase Error: " + message);
+        }
+        return;
+    }
+
+    # Updates a question.
+    #
+    # + questionId - Question ID
+    # + questionText - New question text
+    # + sampleAnswer - New sample answer
+    # + keywords - New keywords
+    # + questionType - New question type
+    # + return - Error if failed
+    remote function updateQuestion(string questionId, string questionText, string sampleAnswer, string[] keywords, string questionType) returns error? {
+        json payload = {
+            "question_text": questionText,
+            "sample_answer": sampleAnswer,
+            "keywords": keywords,
+            "type": questionType
+        };
+
+        string path = string `/rest/v1/questions?id=eq.${questionId}`;
+        http:Response response = check self.httpClient->patch(path, payload, headers = self.headers, targetType = http:Response);
+
+        if response.statusCode >= 300 {
+            json|error errorBody = response.getJsonPayload();
+            string message = errorBody is json ? errorBody.toString() : "Update failed";
+            return error("Supabase Error: " + message);
+        }
+        return;
     }
 
 }
-
