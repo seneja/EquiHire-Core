@@ -4,7 +4,7 @@ import { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EquiHireLogo, DashboardIcon, SessionIcon, IntegrationIcon } from "@/components/ui/Icons";
-import { LogOut, Bell, Settings, Search, Check, Building2, ChevronDown } from "lucide-react";
+import { LogOut, Bell, Settings, Search, Check, Building2, ChevronDown, Activity, FileText } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -36,11 +36,13 @@ import CandidateManager from './views/Candidates';
 import Integrations from './views/Integrations';
 import JobsManager from './views/Jobs';
 import QuestionsManager from './views/Questions';
+import AuditAndStatistics from './views/Audit';
+import MarkingCriteria from './views/MarkingCriteria';
 
 export default function Dashboard() {
     const { state, signOut } = useAuthContext();
     const [organization, setOrganization] = useState<{ id: string; name: string; industry: string; size: string } | null>(null);
-    const [activeTab, setActiveTab] = useState<"scheduler" | "candidates" | "integrations" | "jobs" | "questions">("scheduler");
+    const [activeTab, setActiveTab] = useState<"scheduler" | "candidates" | "integrations" | "jobs" | "questions" | "audit" | "marking">("scheduler");
 
     // Settings State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -120,6 +122,14 @@ export default function Dashboard() {
                     </Button>
                     <Button
                         variant="ghost"
+                        className={`w-full justify-start ${activeTab === 'marking' ? 'text-[#FF7300] bg-orange-50 hover:bg-orange-50 hover:text-[#FF7300]' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                        onClick={() => setActiveTab('marking')}
+                    >
+                        <FileText className="mr-3 h-5 w-5" />
+                        Marking Criteria
+                    </Button>
+                    <Button
+                        variant="ghost"
                         className={`w-full justify-start ${activeTab === 'integrations' ? 'text-[#FF7300] bg-orange-50 hover:bg-orange-50 hover:text-[#FF7300]' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
                         onClick={() => setActiveTab('integrations')}
                     >
@@ -133,6 +143,14 @@ export default function Dashboard() {
                     >
                         <Building2 className="mr-3 h-5 w-5" />
                         Jobs
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        className={`w-full justify-start ${activeTab === 'audit' ? 'text-[#FF7300] bg-orange-50 hover:bg-orange-50 hover:text-[#FF7300]' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                        onClick={() => setActiveTab('audit')}
+                    >
+                        <Activity className="mr-3 h-5 w-5" />
+                        Audit & Stats
                     </Button>
                 </nav>
 
@@ -273,8 +291,10 @@ export default function Dashboard() {
                             {activeTab === 'scheduler' && <InterviewScheduler />}
                             {activeTab === 'candidates' && <CandidateManager />}
                             {activeTab === 'questions' && <QuestionsManager />}
+                            {activeTab === 'marking' && <MarkingCriteria />}
                             {activeTab === 'integrations' && <Integrations />}
                             {activeTab === 'jobs' && <JobsManager />}
+                            {activeTab === 'audit' && <AuditAndStatistics />}
                         </div>
                     </div>
                 </div>
